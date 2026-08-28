@@ -146,25 +146,34 @@ public sealed partial class RosterEntryViewModel : ObservableObject
         set
         {
             if (_pkm.Level == value) return;
-            _pkm.Level = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(SlotText));
-            OnPropertyChanged(nameof(ResidentDisplayText));
 
-            // Exp follows level, the way an in-game level-up sets currExp to the new level's
-            // cumulative requirement (LevelUp in src/run_dungeon.c: currExp = expRequired).
-            // Editing Exp directly afterward still works; this just keeps the pair consistent
-            // by default instead of leaving a Lv.50 Pokemon with Lv.5 Exp.
-            var snapped = ExpCurves.ExpRequiredForLevel(SpeciesId, value);
-            if (snapped.HasValue && _pkm.Exp != (int)snapped.Value)
+            // Level, stats, and Exp move together the way an in-game level-up moves them
+            // (LevelUp in src/dungeon_leveling.c adds that level's growth-table row, capped at
+            // 999/255; level-down subtracts it, floored at 1; currExp snaps to the new level's
+            // requirement). Growth is a fixed per-species table, no RNG, so this yields exactly
+            // the stats a legitimately leveled Pokemon would have. Any stat can still be edited
+            // afterward.
+            if (!RBGrowthTables.SetLevel(_pkm, value))
             {
-                _pkm.Exp = (int)snapped.Value;
-                OnPropertyChanged(nameof(Exp));
+                _pkm.Level = value;
             }
-
-            RefreshExpInfo();
+            NotifyLevelDependentsChanged();
             Edited();
         }
+    }
+
+    private void NotifyLevelDependentsChanged()
+    {
+        OnPropertyChanged(nameof(Level));
+        OnPropertyChanged(nameof(SlotText));
+        OnPropertyChanged(nameof(ResidentDisplayText));
+        OnPropertyChanged(nameof(Exp));
+        OnPropertyChanged(nameof(HP));
+        OnPropertyChanged(nameof(Attack));
+        OnPropertyChanged(nameof(SpAttack));
+        OnPropertyChanged(nameof(Defense));
+        OnPropertyChanged(nameof(SpDefense));
+        RefreshExpInfo();
     }
 
     public int IQ
@@ -284,44 +293,25 @@ public sealed partial class RosterEntryViewModel : ObservableObject
         {
             if (_pkm.Exp == value) return;
             _pkm.Exp = value;
-            OnPropertyChanged();
 
             // And level follows Exp: the game levels up whenever currExp reaches the next
             // level's cumulative requirement, so the level implied by an Exp value is the
-            // highest one whose requirement it meets. Exp itself is left exactly as typed
-            // (partial progress toward the next level is legitimate state).
-            var impliedLevel = LevelImpliedByExp(value);
+            // highest one whose requirement it meets; stats follow the level change as above.
+            // Exp itself is left exactly as typed (partial progress toward the next level is
+            // legitimate state).
+            var impliedLevel = RBGrowthTables.LevelForExp(SpeciesId, value);
             if (impliedLevel.HasValue && impliedLevel.Value != _pkm.Level)
             {
-                _pkm.Level = impliedLevel.Value;
-                OnPropertyChanged(nameof(Level));
-                OnPropertyChanged(nameof(SlotText));
-                OnPropertyChanged(nameof(ResidentDisplayText));
+                RBGrowthTables.SetLevel(_pkm, impliedLevel.Value, keepExp: true);
             }
-
-            RefreshExpInfo();
+            NotifyLevelDependentsChanged();
             Edited();
         }
     }
 
-    /// <summary>The highest level (1-100) whose cumulative Exp requirement is at most
-    /// <paramref name="exp"/> for this species, or null if the species has no curve data.</summary>
-    private int? LevelImpliedByExp(int exp)
-    {
-        if (ExpCurves.ExpRequiredForLevel(SpeciesId, 2) == null) return null;
-        var level = 1;
-        for (var candidate = 2; candidate <= 100; candidate++)
-        {
-            var required = ExpCurves.ExpRequiredForLevel(SpeciesId, candidate);
-            if (required == null || required.Value > exp) break;
-            level = candidate;
-        }
-        return level;
-    }
-
     /// <summary>
     /// How much EXP is needed for the next level and for level 100, using the game's real
-    /// per-species growth curve (<see cref="ExpCurves"/>) rather than a generic formula -- this
+    /// per-species growth curve (<see cref="RBGrowthTables"/>) rather than a generic formula -- this
     /// game's EXP tables are fixed per species, not derived from a shared growth rate.
     /// </summary>
     public string ExpInfoText { get; private set; } = "";
@@ -336,7 +326,7 @@ public sealed partial class RosterEntryViewModel : ObservableObject
         else
         {
             var nextLevel = Level + 1;
-            var expForNext = ExpCurves.ExpRequiredForLevel(SpeciesId, nextLevel);
+            var expForNext = RBGrowthTables.ExpRequiredForLevel(SpeciesId, nextLevel);
             if (expForNext == null)
             {
                 text = "";
@@ -346,7 +336,7 @@ public sealed partial class RosterEntryViewModel : ObservableObject
                 var toNext = (long)expForNext.Value - Exp;
                 text = $"{toNext:N0} Exp to level {nextLevel} ({expForNext.Value:N0} total).";
 
-                var expFor100 = ExpCurves.ExpRequiredForLevel(SpeciesId, 100);
+                var expFor100 = RBGrowthTables.ExpRequiredForLevel(SpeciesId, 100);
                 if (expFor100.HasValue)
                 {
                     var to100 = (long)expFor100.Value - Exp;

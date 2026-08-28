@@ -86,6 +86,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\it\SkyPokemon.txt" />
+    <EmbeddedResource Include="Resources\RBGrowthTables.bin" />
   </ItemGroup>
 
   <ItemGroup>

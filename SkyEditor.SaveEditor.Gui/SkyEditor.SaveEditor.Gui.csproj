@@ -26,7 +26,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="ExpCurves.bin" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)' == 'Debug'">
