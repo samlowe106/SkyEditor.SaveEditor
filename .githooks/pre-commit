@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Pre-commit: style + compile checks on what is being committed. Fast (a few seconds of
+# dotnet format on the staged files, then the net8.0 builds); the full test suite runs on
+# push instead (see pre-push). Skip once with `git commit --no-verify`.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACMR)
+[ ${#staged[@]} -eq 0 ] && exit 0
+
+cs_files=(); py_files=()
+for f in "${staged[@]}"; do
+    case "$f" in
+        *.cs) cs_files+=("$f") ;;
+        *.py) py_files+=("$f") ;;
+    esac
+done
+
+# The net462 leg of the library has never built; every project here is exercised through
+# net8.0, so the checks go project-by-project rather than through the .sln (which also
+# drags in the legacy WPF/VB project).
+declare -A project_for_prefix=(
+    ["SkyEditor.SaveEditor/"]="SkyEditor.SaveEditor/SkyEditor.SaveEditor.csproj"
+    ["SkyEditor.SaveEditor.Gui/"]="SkyEditor.SaveEditor.Gui/SkyEditor.SaveEditor.Gui.csproj"
+    ["SkyEditor.SaveEditor.Cli/"]="SkyEditor.SaveEditor.Cli/SkyEditor.SaveEditor.Cli.csproj"
+    ["Tests/SkyEditor.SaveEditor.Tests/"]="Tests/SkyEditor.SaveEditor.Tests/SkyEditor.SaveEditor.Tests.csproj"
+)
+
+status=0
+if [ ${#cs_files[@]} -gt 0 ]; then
+    declare -A files_by_project=()
+    for f in "${cs_files[@]}"; do
+        for prefix in "${!project_for_prefix[@]}"; do
+            if [[ "$f" == "$prefix"* ]]; then
+                files_by_project["${project_for_prefix[$prefix]}"]+="$f "
+                break
+            fi
+        done
+    done
+    for proj in "${!files_by_project[@]}"; do
+        # shellcheck disable=SC2086
+        if ! dotnet format whitespace "$proj" --verify-no-changes --include ${files_by_project[$proj]} >/dev/null 2>&1; then
+            echo "pre-commit: whitespace formatting differs in $proj. Fix with:"
+            echo "  dotnet format whitespace $proj --include ${files_by_project[$proj]}"
+            status=1
+        fi
+    done
+
+    echo "pre-commit: building net8.0 projects..."
+    for proj in SkyEditor.SaveEditor.Gui/SkyEditor.SaveEditor.Gui.csproj \
+                SkyEditor.SaveEditor.Cli/SkyEditor.SaveEditor.Cli.csproj \
+                Tests/SkyEditor.SaveEditor.Tests/SkyEditor.SaveEditor.Tests.csproj; do
+        if ! out=$(dotnet build "$proj" -v q --nologo 2>&1); then
+            echo "$out" | grep -E " error " | head -20
+            echo "pre-commit: build failed for $proj"
+            status=1
+        fi
+    done
+fi
+
+if [ ${#py_files[@]} -gt 0 ]; then
+    for f in "${py_files[@]}"; do
+        if ! python3 -m py_compile "$f"; then
+            echo "pre-commit: $f does not compile"
+            status=1
+        fi
+    done
+    if command -v ruff >/dev/null 2>&1; then
+        ruff check "${py_files[@]}" || status=1
+    fi
+fi
+
+exit $status

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Pre-push: the full test suite, including the byte-level algebra tests against the real
+# save fixture (identity/idempotence/invertibility/ratchets). Roughly 15-30 s. Skip once
+# with `git push --no-verify`.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+echo "pre-push: running tests..."
+if ! out=$(dotnet test Tests/SkyEditor.SaveEditor.Tests/SkyEditor.SaveEditor.Tests.csproj --nologo 2>&1); then
+    echo "$out" | grep -E "Failed |error |Passed!|Failed!" | head -40
+    echo "pre-push: tests failed; push aborted."
+    exit 1
+fi
+echo "$out" | grep -E "Passed!|Failed!"
