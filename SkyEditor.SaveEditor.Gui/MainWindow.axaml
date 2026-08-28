@@ -1,0 +1,633 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SkyEditor.SaveEditor.Gui.ViewModels"
+        xmlns:local="using:SkyEditor.SaveEditor.Gui"
+        xmlns:rb="using:SkyEditor.SaveEditor.MysteryDungeon.Rescue"
+        x:Class="SkyEditor.SaveEditor.Gui.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Sky Editor - Red/Blue Rescue Team"
+        Width="1150" Height="780" MinWidth="820" MinHeight="520">
+    <Window.Resources>
+        <!-- Shared by the grouped Friend Areas list's nested residents ListBox and the flat
+             sorted-by-name/number/level/IQ ListBox, so both render identical rows. The leftmost
+             column is a pending-change accent bar (not a whole-row background) so it layers
+             cleanly on top of a real ListBoxItem's own native selected-background instead of
+             fighting with it. -->
+        <DataTemplate x:Key="ResidentRowTemplate" x:DataType="vm:RosterEntryViewModel">
+            <Grid ColumnDefinitions="4,*,Auto">
+                <Border Grid.Column="0" Background="#A0FFB75E" CornerRadius="2" Margin="0,2,8,2"
+                        IsVisible="{Binding IsPending}" />
+                <TextBlock Grid.Column="1" Text="{Binding ResidentDisplayText}" FontFamily="monospace"
+                           FontSize="13" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Content="-" Click="OnDeleteResidentClick" IsVisible="{Binding CanDelete}" Classes="danger"
+                        Padding="6,0" MinWidth="0" MinHeight="0" Margin="8,0,0,0" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+    <Window.Styles>
+        <!-- Every numeric field in this editor is an integer (quantities, levels, stats, money);
+             without a FormatString, NumericUpDown's decimal backing type surfaces as "2.0" the
+             moment the spinner is used. -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="FormatString" Value="0" />
+        </Style>
+    </Window.Styles>
+    <DockPanel>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Padding="12,10" BorderBrush="Gray" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Name="OpenButton" Content="Open Save..." Click="OnOpenClick" Classes="accent" />
+                <TextBlock Text="{Binding PathText}" VerticalAlignment="Center" Opacity="0.7" Margin="8,0,0,0" />
+                <TextBlock Text="{Binding PendingSummaryText}" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FFA500" Margin="8,0,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Padding="12,8" BorderBrush="Gray" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" Opacity="0.7" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Save" Click="OnSaveClick" IsEnabled="{Binding IsDirty}" IsVisible="{Binding IsSaveOpen}" />
+                    <Button Content="Save As..." Click="OnSaveAsClick" IsVisible="{Binding IsSaveOpen}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid>
+            <!-- Placeholder shown until a save is opened: the whole background is the drop/click target -->
+            <Button Name="WelcomePanel" Click="OnOpenClick" Background="Transparent" BorderThickness="0"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    Cursor="Hand" DragDrop.AllowDrop="True" IsVisible="{Binding !IsSaveOpen}">
+                <StackPanel Spacing="8" MaxWidth="360">
+                    <TextBlock Text="Click here or drag and drop to load a save" FontSize="20" FontWeight="Bold"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                    <TextBlock Text="Loads a Red/Blue Rescue Team .sav or .srm file."
+                               TextWrapping="Wrap" TextAlignment="Center" Opacity="0.7" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <TabControl Name="MainTabs" IsVisible="{Binding IsSaveOpen}">
+
+                <TabItem Header="General">
+                    <Grid Margin="16" RowDefinitions="Auto,Auto,*">
+
+                        <Grid Grid.Row="0" ColumnDefinitions="440,24,*">
+                            <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Top">
+                                <TextBlock Text="{Binding TeamNameText}" FontWeight="Bold" FontSize="18" Margin="0,0,0,8" />
+                                <TextBlock Text="{Binding HeldMoneyText}" />
+                                <TextBlock Text="{Binding StoredMoneyText}" />
+                                <TextBlock Text="{Binding ChecksumText}" Opacity="0.7" Margin="0,4,0,0" />
+
+                                <Border BorderBrush="Gray" BorderThickness="0,1,0,0" Margin="0,16" />
+
+                                <TextBlock Text="Add money" FontWeight="Bold" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <NumericUpDown Value="{Binding MoneyAmount, Mode=TwoWay}" Minimum="-999999" Maximum="999999" Width="150" />
+                                    <RadioButton Content="Held" GroupName="MoneyTarget" IsChecked="{Binding TargetIsHeldMoney, Mode=TwoWay}" VerticalAlignment="Center" />
+                                    <RadioButton Content="Stored" GroupName="MoneyTarget" IsChecked="{Binding !TargetIsHeldMoney, Mode=TwoWay}" VerticalAlignment="Center" />
+                                    <Button Content="Apply" Command="{Binding ApplyMoneyCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Top">
+                                <TextBlock Text="Rescue Team Rank" FontWeight="Bold" />
+                                <TextBlock Text="{Binding RescuePointsText}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding RescueRankText}" FontSize="16" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{Binding Ranks}" SelectedItem="{Binding SelectedRank, Mode=TwoWay}" Width="130"
+                                              ToolTip.Tip="Pick a rank to set the points to the minimum that earns it. Rank always follows points, the same way the game computes it.">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="rb:RBRescueTeamRank">
+                                                <TextBlock Text="{Binding Converter={x:Static local:RankNameConverter.Instance}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                                <TextBlock Text="{Binding RescueRankProgressText}" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <NumericUpDown Value="{Binding RescuePointsAmount, Mode=TwoWay}" Minimum="-999999" Maximum="999999" Width="150" />
+                                    <Button Content="Apply" Command="{Binding ApplyRescuePointsCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="0,1,0,0" Margin="0,16" />
+
+                        <Grid Grid.Row="2" ColumnDefinitions="*,8,*" RowDefinitions="Auto,*">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Add Items" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Inventory" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
+
+                            <DockPanel Grid.Row="1" Grid.Column="0">
+                                <TextBox Name="ItemFilterInput" DockPanel.Dock="Top" Watermark="Filter items..." Margin="0,0,0,8" TextChanged="OnItemFilterChanged" />
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                                    <NumericUpDown Name="ItemQuantityInput" Minimum="1" Maximum="999" Value="1" Width="120"
+                                                   ToolTip.Tip="Quantity when adding to Storage (the game caps each stored stack at 999). Ignored for the Toolbox and held items: those get stack 0 like the game's own gear; edit the stack afterward for thrown items." />
+                                    <Button Content="Add -&gt;" Click="OnAddItemClick" Classes="accent"
+                                            ToolTip.Tip="Adds the selected item to whichever inventory tab is open on the right (for Held by Pokemon: to the Pokemon selected there). You can also drag any item row instead." />
+                                </StackPanel>
+                                <ListBox Name="AllItemsList"
+                                         PointerPressed="OnItemRowPointerPressed" PointerMoved="OnItemRowPointerMoved" PointerReleased="OnItemRowPointerReleased">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent">
+                                                <Image Source="{Binding Icon}" Width="20" Height="20" Stretch="Uniform" />
+                                                <TextBlock Text="{Binding DisplayName}" FontFamily="monospace" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+
+                            <!-- The three item containers as tabs. Dragging an item row over a tab
+                                 header switches to that tab mid-drag, so any row can be dragged
+                                 between containers even though only one list shows at a time. -->
+                            <TabControl Grid.Row="1" Grid.Column="2" Name="InventoryTabs" Padding="0,8,0,0" SelectionChanged="OnInventoryTabChanged">
+                                <TabItem Name="StorageTab">
+                                    <TabItem.Header>
+                                        <TextBlock Text="Storage" ToolTip.Tip="Kangaskhan Storage. Drop items here (or use Add) to store them." />
+                                    </TabItem.Header>
+                                    <DockPanel Name="StoragePanel" Background="Transparent" DragDrop.AllowDrop="True">
+                                        <TextBlock DockPanel.Dock="Top" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
+                                                   Text="Drag rows to the Toolbox or Held by Pokemon tabs (hover the tab header to switch). -1 removes one, x removes the whole stack." />
+                                        <ListBox Name="StoredItemsList"
+                                                 PointerPressed="OnItemRowPointerPressed" PointerMoved="OnItemRowPointerMoved" PointerReleased="OnItemRowPointerReleased">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{Binding Highlight}" HorizontalAlignment="Stretch" Padding="4,2" CornerRadius="3">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                            <Image Grid.Column="0" Source="{Binding Icon}" Width="20" Height="20" Stretch="Uniform" Margin="0,0,8,0" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding DisplayText}" FontFamily="monospace" VerticalAlignment="Center" />
+                                                            <Button Grid.Column="2" Content="-1" Click="OnDecrementStoredItemClick" Padding="6,0" MinWidth="0" MinHeight="0" Margin="8,0,4,0"
+                                                                    ToolTip.Tip="Remove one from storage." />
+                                                            <Button Grid.Column="3" Content="x" Click="OnRemoveStoredItemClick" Classes="danger" Padding="6,0" MinWidth="0" MinHeight="0"
+                                                                    ToolTip.Tip="Remove the whole stack from storage." />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </TabItem>
+
+                                <TabItem Name="ToolboxTab">
+                                    <TabItem.Header>
+                                        <TextBlock Name="ToolboxHeader" Text="Toolbox"
+                                                   ToolTip.Tip="The team's carried bag: 20 slots, independent of storage and of items held by team members. The stack number only matters for thrown items (Gravelerock etc.); the game keeps it 0 for ordinary gear." />
+                                    </TabItem.Header>
+                                    <DockPanel Name="ToolboxPanel" Background="Transparent" DragDrop.AllowDrop="True">
+                                        <TextBlock DockPanel.Dock="Top" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
+                                                   Text="Drag rows to the Storage or Held by Pokemon tabs (hover the tab header to switch)." />
+                                        <ListBox Name="ToolboxList"
+                                                 PointerPressed="OnItemRowPointerPressed" PointerMoved="OnItemRowPointerMoved" PointerReleased="OnItemRowPointerReleased">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                                        <Image Grid.Column="0" Source="{Binding Icon}" Width="20" Height="20" Stretch="Uniform" Margin="0,0,8,0" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding DisplayText}" FontFamily="monospace" VerticalAlignment="Center" />
+                                                        <Button Grid.Column="2" Content="Remove" Click="OnRemoveToolboxItemClick" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </TabItem>
+
+                                <TabItem Name="HeldTab">
+                                    <TabItem.Header>
+                                        <TextBlock Text="Held by Pokemon" ToolTip.Tip="What each recruited Pokemon is holding. Drop an item on a Pokemon to give it (anything it was holding goes to Storage)." />
+                                    </TabItem.Header>
+                                    <DockPanel Background="Transparent">
+                                        <TextBlock DockPanel.Dock="Top" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
+                                                   Text="Drop an item on a Pokemon to give it to them; anything they were already holding goes to Storage. Take moves the held item to Storage. Drag the held-item line to move it elsewhere." />
+                                        <ListBox Name="HeldList" DragDrop.AllowDrop="True"
+                                                 PointerPressed="OnItemRowPointerPressed" PointerMoved="OnItemRowPointerMoved" PointerReleased="OnItemRowPointerReleased">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:RosterEntryViewModel">
+                                                    <StackPanel Spacing="2" Background="Transparent">
+                                                        <TextBlock Text="{Binding ResidentDisplayText}" FontFamily="monospace" FontSize="13" />
+                                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="20,0,0,2">
+                                                            <Image Grid.Column="0" Source="{Binding HeldItemIcon}" Width="20" Height="20" Stretch="Uniform" Margin="0,0,8,0"
+                                                                   IsVisible="{Binding HasHeldItem}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding HeldItemDisplayText}" FontFamily="monospace" FontSize="12"
+                                                                       Opacity="0.85" VerticalAlignment="Center" />
+                                                            <Button Grid.Column="2" Content="Take" Click="OnTakeHeldItemClick" IsVisible="{Binding HasHeldItem}"
+                                                                    Padding="6,0" MinWidth="0" MinHeight="0" ToolTip.Tip="Move this held item to Storage." />
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Friend Areas and Roster">
+                    <!-- Two independent panes, not overlaid over a shared region: with
+                         SelectedFriendArea and SelectedRosterEntry no longer forced to clear each
+                         other (see MainWindowViewModel), overlaying them risked a visible frame
+                         where both showed at once. A dedicated area per pane can't overlap. -->
+                    <Grid Margin="16" ColumnDefinitions="*,16,*">
+                        <DockPanel Grid.Column="0">
+                            <TextBlock DockPanel.Dock="Top" Text="Friend Areas and Roster" FontWeight="Bold" FontSize="16" Margin="0,0,0,4" />
+
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                                <TextBlock Text="Sort by:" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding SortModes}" SelectedItem="{Binding SortMode, Mode=TwoWay}" Width="170">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SortMode">
+                                            <TextBlock Text="{Binding Converter={x:Static vm:SortModeDisplayConverter.Instance}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <TextBlock DockPanel.Dock="Top" IsVisible="{Binding ShowGroupedView}"
+                                       Text="Tick a box to unlock an area. Click the arrow to expand it, a Pokemon to edit it, or the area name / open slots to see who else can move in."
+                                       Opacity="0.6" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,12" />
+                            <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !ShowGroupedView}"
+                                       Text="Click a Pokemon to edit it. Click the - or press Delete to release it (Farewell)."
+                                       Opacity="0.6" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,12" />
+
+                            <!-- Both lists occupy the same cell and are toggled by the single ShowGroupedView
+                                 flag, so exactly one is ever visible, unlike the old FriendArea/RosterDetail
+                                 pane split: there's no risk of a transient both-or-neither frame here, since
+                                 both IsVisible bindings derive from one property, not two independently-set ones. -->
+                            <Grid>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding ShowGroupedView}">
+                                    <!-- AutoScrollToSelectedItem off, here and on the nested/flat lists below:
+                                         recruiting (and area-unlocking) sets SelectedFriendArea programmatically,
+                                         and the default bring-into-view yanked the outer ScrollViewer whenever the
+                                         selected item was a tall expanded area, resetting the user's scroll position.
+
+                                         Plain StackPanel instead of the default VirtualizingStackPanel, here and on
+                                         the Candidates list below: these rows have wildly variable heights (a
+                                         collapsed area is one line, an expanded one is hundreds of pixels), so
+                                         virtualization's estimated extent kept getting revised as rows realized,
+                                         which visibly resized the scrollbar thumb and jolted the scroll position
+                                         when expanding areas or recruiting. 57 always-realized rows are cheap;
+                                         a non-virtualized panel gives an exact, stable extent. -->
+                                    <ListBox ItemsSource="{Binding FriendAreas}" SelectedItem="{Binding SelectedFriendArea, Mode=TwoWay}"
+                                             AutoScrollToSelectedItem="False">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel />
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:FriendAreaViewModel">
+                                                <StackPanel>
+                                                    <Grid ColumnDefinitions="4,20,Auto,*">
+                                                        <Border Grid.Column="0" Background="#A0FFB75E" CornerRadius="2" Margin="0,0,4,0"
+                                                                IsVisible="{Binding IsPending}" />
+                                                        <Button Grid.Column="1" Content="{Binding ExpandGlyph}" Command="{Binding ToggleExpandCommand}"
+                                                                IsVisible="{Binding Unlocked}" Background="Transparent" BorderThickness="0"
+                                                                Padding="0" MinWidth="20" HorizontalContentAlignment="Center" FontSize="10" />
+                                                        <CheckBox Grid.Column="2" IsChecked="{Binding Unlocked, Mode=TwoWay}"
+                                                                  IsVisible="{Binding IsRealArea}" VerticalAlignment="Center" Margin="2,0" />
+                                                        <TextBlock Grid.Column="3" Text="{Binding HeaderText}" VerticalAlignment="Center"
+                                                                   Margin="4,2" FontFamily="monospace" />
+                                                    </Grid>
+                                                    <StackPanel IsVisible="{Binding ShowExpandedContent}" Margin="28,0,0,4" Spacing="1">
+                                                        <ListBox ItemsSource="{Binding Residents}" SelectedItem="{Binding SelectedResident, Mode=TwoWay}"
+                                                                 AutoScrollToSelectedItem="False"
+                                                                 ItemTemplate="{StaticResource ResidentRowTemplate}" KeyDown="OnResidentListKeyDown">
+                                                            <ListBox.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ListBox.ItemsPanel>
+                                                        </ListBox>
+                                                        <TextBlock Text="{Binding OpenSlotsText}" IsVisible="{Binding HasOpenSlots}"
+                                                                   Margin="4,1" FontFamily="monospace" Opacity="0.7" />
+
+                                                        <!-- "Who can live here": part of this area's own disclosure, not a
+                                                             shared section elsewhere, so opening the arrow always reveals
+                                                             something even when there are no residents to list yet. -->
+                                                        <StackPanel Spacing="8" Margin="0,8,4,4">
+                                                            <TextBlock Text="{Binding CandidatesHeader}" FontWeight="Bold" TextWrapping="Wrap" />
+                                                            <!-- No MaxHeight: this list should grow to show every candidate in
+                                                                 full, relying on the outer ScrollViewer (around the whole Friend
+                                                                 Areas list) for scrolling rather than getting its own inner one. -->
+                                                            <ListBox ItemsSource="{Binding Candidates}" SelectedItem="{Binding SelectedCandidate, Mode=TwoWay}"
+                                                                     AutoScrollToSelectedItem="False">
+                                                                <ListBox.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <StackPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ListBox.ItemsPanel>
+                                                                <ListBox.ItemTemplate>
+                                                                    <DataTemplate x:DataType="vm:RecruitCandidateViewModel">
+                                                                        <Grid ColumnDefinitions="Auto,Auto">
+                                                                            <Button Grid.Column="0" Content="+" Click="OnRecruitCandidateClick" Classes="accent"
+                                                                                    Padding="6,0" MinWidth="0" MinHeight="0" Margin="0,0,8,0" />
+                                                                            <TextBlock Grid.Column="1" Text="{Binding DisplayText}" FontFamily="monospace" FontSize="13" VerticalAlignment="Center" />
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ListBox.ItemTemplate>
+                                                            </ListBox>
+                                                            <TextBlock Text="Click a candidate to preview it on the right, or the + to recruit it directly. Stats are the exact values a legitimate recruit would have at this level, extracted from the ROM's own growth data." Opacity="0.6" TextWrapping="Wrap" FontSize="11" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </ScrollViewer>
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding !ShowGroupedView}">
+                                    <ListBox ItemsSource="{Binding FlatSortedResidents}" SelectedItem="{Binding SelectedFlatRosterEntry, Mode=TwoWay}"
+                                             AutoScrollToSelectedItem="False"
+                                             ItemTemplate="{StaticResource ResidentRowTemplate}" KeyDown="OnResidentListKeyDown" />
+                                </ScrollViewer>
+                            </Grid>
+                        </DockPanel>
+
+                        <!-- Right pane: whichever Friend Area is selected shows its art up top (this
+                             stays put regardless of which Pokemon is selected below it, since it's
+                             the "where am I browsing" context, not part of either selection's own detail);
+                             below that, the dossier for whichever Pokemon is selected, real or a
+                             read-only candidate preview. -->
+                        <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                          <StackPanel Spacing="16">
+
+                            <StackPanel IsVisible="{Binding ShowFriendAreaInfo}" Spacing="4">
+                                <StackPanel DataContext="{Binding SelectedFriendArea}" x:DataType="vm:FriendAreaViewModel" Spacing="4">
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="16" TextWrapping="Wrap" />
+                                    <Border Height="240" Background="#22808080" CornerRadius="6" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Graphic}" Stretch="UniformToFill" IsVisible="{Binding HasGraphic}" />
+                                            <TextBlock Text="(no artwork yet for this area)" IsVisible="{Binding !HasGraphic}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="240" />
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel IsVisible="{Binding ShowRosterDetail}">
+                            <StackPanel DataContext="{Binding SelectedRosterEntry}" x:DataType="vm:RosterEntryViewModel" Spacing="16">
+
+                                <TextBlock Text="Preview only -- these are the exact stats a legitimate recruit would have; this Pokemon hasn't actually been added to your roster. Use &quot;+ Recruit Selected&quot; on the left to do that."
+                                           IsVisible="{Binding IsPreview}" Opacity="0.8" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="#FFA500" FontWeight="Bold" />
+
+                                <!-- Portrait + identity: a small dossier-style header, not a banner -->
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <Border Width="72" Height="72" Background="#22808080" CornerRadius="6" VerticalAlignment="Top">
+                                        <Grid>
+                                            <Image Source="{Binding Portrait}" Stretch="Uniform" Margin="4" IsVisible="{Binding HasPortrait}" />
+                                            <TextBlock Text="(no portrait)" IsVisible="{Binding !HasPortrait}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center" FontSize="10" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Spacing="8" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding HeaderText}" FontWeight="Bold" FontSize="16" TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" IsEnabled="{Binding !IsPreview}">
+                                            <TextBlock Text="Nickname:" VerticalAlignment="Center" Width="90" />
+                                            <TextBox Text="{Binding Name, Mode=TwoWay}" Width="200" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                                <TextBlock Text="Team leader / active-party status isn't tracked here yet -- it lives in a part of the save format this tool doesn't parse. This only edits the general recruited-roster entry."
+                                           IsVisible="{Binding !IsPreview}" Opacity="0.6" TextWrapping="Wrap" FontSize="11" />
+
+                                <!-- Everything below is read-only for a candidate preview. -->
+                                <StackPanel Spacing="16" IsEnabled="{Binding !IsPreview}">
+
+                                <!-- Met at -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Met At" FontWeight="Bold" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Dungeon:" VerticalAlignment="Center" Width="90" />
+                                        <ComboBox Name="RosterMetAtInput" SelectedItem="{Binding MetAtName, Mode=TwoWay}" Width="200" />
+                                        <TextBlock Text="Floor:" VerticalAlignment="Center" Margin="16,0,0,0" />
+                                        <NumericUpDown Value="{Binding Floor, Mode=TwoWay}" IsEnabled="{Binding FloorEditable}" Minimum="0" Maximum="127" Width="130" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Held item -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Held Item" FontWeight="Bold" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Item:" VerticalAlignment="Center" Width="90" />
+                                        <ComboBox Name="RosterHeldItemInput" SelectedItem="{Binding HeldItemName, Mode=TwoWay}" Width="200" />
+                                        <TextBlock Text="Stack:" VerticalAlignment="Center" Margin="16,0,0,0" />
+                                        <NumericUpDown Value="{Binding HeldItemQuantity, Mode=TwoWay}" Minimum="0" Maximum="127" Width="130"
+                                                       ToolTip.Tip="Stack count. Only meaningful for thrown items like Gravelerock; the game keeps this 0 for ordinary gear, so leave it 0 unless the item is a thrown stack." />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Stats -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Stats" FontWeight="Bold" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Level:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding Level, Mode=TwoWay}" Minimum="1" Maximum="100" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="IQ:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding IQ, Mode=TwoWay}" Minimum="0" Maximum="600" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="HP:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding HP, Mode=TwoWay}" Minimum="1" Maximum="999" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Attack:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding Attack, Mode=TwoWay}" Minimum="1" Maximum="255" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Sp. Attack:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding SpAttack, Mode=TwoWay}" Minimum="1" Maximum="255" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Defense:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding Defense, Mode=TwoWay}" Minimum="1" Maximum="255" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Sp. Defense:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding SpDefense, Mode=TwoWay}" Minimum="1" Maximum="255" Width="150" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Exp:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding Exp, Mode=TwoWay}" Minimum="0" Maximum="16777215" Width="150" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ExpInfoText}" Opacity="0.7" TextWrapping="Wrap" FontSize="11" />
+                                </StackPanel>
+
+                                <!-- Moves -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Moves" FontWeight="Bold" />
+                                    <TextBlock Text="Type a move name and click away to set it; clear the box to remove the move." Opacity="0.6" TextWrapping="Wrap" FontSize="11" />
+                                    <ItemsControl ItemsSource="{Binding Moves}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:MoveSlotViewModel">
+                                                <Border BorderBrush="Gray" BorderThickness="0,0,0,1" Padding="0,0,0,8" Margin="{Binding LinkIndent}">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Text="{Binding SlotLabel}" FontWeight="Bold" />
+                                                        <AutoCompleteBox Text="{Binding MoveName, Mode=OneWay}" FilterMode="Contains" Watermark="(none)" LostFocus="OnMoveNameLostFocus" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                                            <CheckBox Content="Linked with Above" IsChecked="{Binding IsLinked, Mode=TwoWay}" />
+                                                            <CheckBox Content="AI-usable" IsChecked="{Binding IsSwitched, Mode=TwoWay}" />
+                                                            <CheckBox Content="Set (L+A)" IsChecked="{Binding IsSet, Mode=TwoWay}" />
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBlock Text="Power boost (Ginseng):" VerticalAlignment="Center" />
+                                                            <NumericUpDown Value="{Binding PowerBoost, Mode=TwoWay}" Minimum="0" Maximum="99" Width="100" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                </StackPanel>
+
+                            </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock Text="Select a friend area or a Pokemon on the left" IsVisible="{Binding ShowRightPanePlaceholder}"
+                                       Opacity="0.6" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Story Flags">
+                    <DockPanel Margin="16">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
+                            <TextBlock Text="Level:" VerticalAlignment="Center" />
+                            <NumericUpDown Name="BossLevelInput" Minimum="1" Maximum="100" Value="30" Width="120" />
+                            <Button Content="Mark Selected Boss Recruited" Click="OnMarkBossClick"
+                                    ToolTip.Tip="Sets both the roster entry and (if this boss has one) its cutscene-complete flag at once, the same as beating it legitimately. There's no undo: this tool can't clear a flag once set, which is also why Friend Areas and Roster won't let you release a recruited boss." />
+                        </StackPanel>
+
+                        <Grid RowDefinitions="Auto,*,12,Auto,*,Auto">
+
+                        <Grid Grid.Row="0" ColumnDefinitions="*,110,110,110" Margin="8,0,20,4">
+                            <TextBlock Grid.Column="0" Text="Boss" FontWeight="Bold" Opacity="0.7" FontSize="11" />
+                            <TextBlock Grid.Column="1" Text="Recruited" FontWeight="Bold" Opacity="0.7" FontSize="11" HorizontalAlignment="Stretch" TextAlignment="Center" Background="Transparent"
+                                       ToolTip.Tip="Whether this species currently has a roster entry (is in Save.StoredPokemon)." />
+                            <TextBlock Grid.Column="2" Text="Recruitable" FontWeight="Bold" Opacity="0.7" FontSize="11" HorizontalAlignment="Stretch" TextAlignment="Center" Background="Transparent"
+                                       ToolTip.Tip="Whether the real game would currently let this species be recruited if the recruit roll succeeds. Green/red = confirmed; gray dash = no restriction applies. A * means the cell isn't backed by an RBCutsceneFlag at all (checked some other way, or doesn't apply) -- hover a row's cell for the exact flag name or the reason there isn't one." />
+                            <TextBlock Grid.Column="3" Text="Cutscene Flag" FontWeight="Bold" Opacity="0.7" FontSize="11" HorizontalAlignment="Stretch" TextAlignment="Center" Background="Transparent"
+                                       ToolTip.Tip="Whether this boss's story cutscene-complete RBCutsceneFlag is set. A * means this boss has no such flag -- hover a row's cell for the exact flag name or the reason there isn't one." />
+                        </Grid>
+
+                        <ListBox Grid.Row="1" Name="BossList">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding Highlight}" HorizontalAlignment="Stretch" Padding="4,4" CornerRadius="3">
+                                        <Grid ColumnDefinitions="*,110,110,110">
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontFamily="monospace" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding RecruitedCell.Glyph}" Foreground="{Binding RecruitedCell.Tint}"
+                                                       ToolTip.Tip="{Binding RecruitedCell.Tooltip}" FontWeight="Bold" HorizontalAlignment="Stretch" TextAlignment="Center"
+                                                       VerticalAlignment="Stretch" Background="Transparent" />
+                                            <TextBlock Grid.Column="2" Text="{Binding RecruitableCell.Glyph}" Foreground="{Binding RecruitableCell.Tint}"
+                                                       ToolTip.Tip="{Binding RecruitableCell.Tooltip}" FontWeight="Bold" HorizontalAlignment="Stretch" TextAlignment="Center"
+                                                       VerticalAlignment="Stretch" Background="Transparent" />
+                                            <TextBlock Grid.Column="3" Text="{Binding CutsceneFlagCell.Glyph}" Foreground="{Binding CutsceneFlagCell.Tint}"
+                                                       ToolTip.Tip="{Binding CutsceneFlagCell.Tooltip}" FontWeight="Bold" HorizontalAlignment="Stretch" TextAlignment="Center"
+                                                       VerticalAlignment="Stretch" Background="Transparent" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Grid Grid.Row="3" ColumnDefinitions="90,210,*,110" Margin="8,0,20,4">
+                            <TextBlock Grid.Column="0" Text="Phase" FontWeight="Bold" Opacity="0.7" FontSize="11" />
+                            <TextBlock Grid.Column="1" Text="Story" FontWeight="Bold" Opacity="0.7" FontSize="11"
+                                       ToolTip.Tip="Every named story-progression RBCutsceneFlag, in story order (see RBStoryFlags). Read-only: flags are set via the boss list above or by playing; this tool never clears one." />
+                            <TextBlock Grid.Column="2" Text="Event" FontWeight="Bold" Opacity="0.7" FontSize="11" />
+                            <TextBlock Grid.Column="3" Text="Set" FontWeight="Bold" Opacity="0.7" FontSize="11" HorizontalAlignment="Stretch" TextAlignment="Center" Background="Transparent"
+                                       ToolTip.Tip="Whether this cutscene flag is set on the loaded save." />
+                        </Grid>
+
+                        <TextBlock Grid.Row="5" Margin="8,8,8,0" FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                                   Text="Flags you never need to set by hand: the two Regi scratch flags are rewritten by the game every time a Regi room is entered; the Adventure Log's achievements and moves-learned entries are recomputed by the game in town and on its next save; and dungeons gated on friend areas (Wyvern Hill, Southern Cavern, Desert Region, Darknight Relic, Grand Sea, Far-off Sea, Unown Relic, Joyous Tower, Purity Forest) open automatically on the next town visit once the friend area is unlocked, no dungeon flag needed. See RECRUIT_MECHANICS.md." />
+
+                        <ListBox Grid.Row="4" Name="StoryFlagList">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="90,210,*,110" Margin="4,2">
+                                        <TextBlock Grid.Column="0" Text="{Binding Phase}" Opacity="0.6" FontSize="11" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontFamily="monospace" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Description}" Opacity="0.85" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="{Binding SetCell.Glyph}" Foreground="{Binding SetCell.Tint}"
+                                                   ToolTip.Tip="{Binding SetCell.Tooltip}" FontWeight="Bold" HorizontalAlignment="Stretch" TextAlignment="Center"
+                                                   VerticalAlignment="Stretch" Background="Transparent" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        </Grid>
+                    </DockPanel>
+                </TabItem>
+
+                <TabItem Header="Wonder Mail">
+                    <ScrollViewer Margin="16">
+                        <StackPanel Spacing="6">
+                            <StackPanel.Resources>
+                                <DataTemplate x:Key="WonderMailRowTemplate" DataType="local:WonderMailRow">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="8,2" ToolTip.Tip="{Binding Tooltip}">
+                                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Summary}" />
+                                            <TextBlock Text="{Binding Reward}" Opacity="0.7" FontSize="12" />
+                                        </StackPanel>
+                                        <SelectableTextBlock Grid.Column="1" Text="{Binding Password}" FontFamily="monospace" Opacity="0.85"
+                                                             VerticalAlignment="Center" Margin="12,0" />
+                                        <Button Grid.Column="2" Content="Remove" Click="OnRemoveMailClick" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </StackPanel.Resources>
+
+                            <TextBlock Text="Accepted jobs" FontWeight="Bold"
+                                       ToolTip.Tip="The up-to-8 jobs currently in the in-game Job List (accepted from the Pelipper board or entered as Wonder Mail passwords). Removing one works like deleting it in-game: remaining jobs shift up. Best done while the in-game save isn't suspended mid-dungeon on that job." />
+                            <ItemsControl Name="JobList" ItemTemplate="{StaticResource WonderMailRowTemplate}" />
+                            <TextBlock Name="JobListEmpty" Text="(none)" Opacity="0.5" Margin="8,0" />
+
+                            <TextBlock Text="Pelipper board" FontWeight="Bold" Margin="0,10,0,0"
+                                       ToolTip.Tip="The Pelipper Post Office bulletin board's current postings. The game regenerates these daily; removing one just clears the posting." />
+                            <ItemsControl Name="BoardList" ItemTemplate="{StaticResource WonderMailRowTemplate}" />
+                            <TextBlock Name="BoardListEmpty" Text="(none)" Opacity="0.5" Margin="8,0" />
+
+                            <TextBlock Text="Mailbox" FontWeight="Bold" Margin="0,10,0,0"
+                                       ToolTip.Tip="Mail received at the Team Base mailbox (friend-rescue SOS/A-OK/Thank-You mail and delivered Wonder Mail)." />
+                            <ItemsControl Name="MailboxList" ItemTemplate="{StaticResource WonderMailRowTemplate}" />
+                            <TextBlock Name="MailboxListEmpty" Text="(none)" Opacity="0.5" Margin="8,0" />
+
+                            <TextBlock Text="Used Wonder Mail passwords" FontWeight="Bold" Margin="0,10,0,0"
+                                       ToolTip.Tip="Fingerprints of the last 16 completed Wonder Mail jobs. The game rejects a password matching any entry as already used (it's a FIFO: completing a 17th job evicts the oldest automatically). Only the dungeon, floor, and mission seed are stored, so the full mission isn't recoverable from here. Removing an entry makes that password enterable again." />
+                            <ItemsControl Name="UsedMailList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="local:UsedMailRow">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="8,2" ToolTip.Tip="{Binding Tooltip}">
+                                            <TextBlock Grid.Column="0" Text="{Binding Summary}" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="Remove" Click="OnRemoveUsedMailClick" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Name="UsedMailListEmpty" Text="(none)" Opacity="0.5" Margin="8,0" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+            </TabControl>
+        </Grid>
+    </DockPanel>
+</Window>

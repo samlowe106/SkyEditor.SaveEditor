@@ -43,12 +43,33 @@ namespace SkyEditor.SaveEditor
         public BitBlock(IEnumerable<byte> source)
         {
             Position = 0;
-            Bits = new List<bool>();
-            foreach (var item in source)
+            // Unpack into a right-sized array first, then let the List constructor bulk-copy it:
+            // growing a List bit-by-bit from a 128KB save means ~1M Add calls plus ~20 backing
+            // array regrowths, which used to be roughly half the cost of loading a save.
+            if (source is byte[] || source is ICollection<byte>)
             {
-                for (int b = 0; b < 8; b++)
+                var bytes = source as byte[] ?? System.Linq.Enumerable.ToArray(source);
+                var buffer = new bool[bytes.Length * 8];
+                for (int i = 0; i < bytes.Length; i++)
                 {
-                    Bits.Add(((item >> b) & 1) == 1);
+                    var value = bytes[i];
+                    var offset = i * 8;
+                    for (int b = 0; b < 8; b++)
+                    {
+                        buffer[offset + b] = ((value >> b) & 1) == 1;
+                    }
+                }
+                Bits = new List<bool>(buffer);
+            }
+            else
+            {
+                Bits = new List<bool>();
+                foreach (var item in source)
+                {
+                    for (int b = 0; b < 8; b++)
+                    {
+                        Bits.Add(((item >> b) & 1) == 1);
+                    }
                 }
             }
         }
@@ -73,26 +94,30 @@ namespace SkyEditor.SaveEditor
 
         public int GetInt(int byteIndex, int bitIndex, int bitLength)
         {
+            var bits = Bits;
+            var offset = byteIndex * 8 + bitIndex;
             int output = 0;
             for (int b = 0; b < bitLength; b++)
             {
-                output |= (Bits[byteIndex * 8 + bitIndex + b] ? 1 : 0) << b;
+                output |= (bits[offset + b] ? 1 : 0) << b;
             }
             return output;
         }
 
         public void SetInt(int byteIndex, int bitIndex, int bitLength, int value)
         {
-            var bitsWritten = 0;
-            var buffer = BitConverter.GetBytes(value);
-            for (int i = 0; i < buffer.Length; i++)
+            SetBitsLsbFirst(byteIndex * 8 + bitIndex, Math.Min(bitLength, 32), (uint)value);
+        }
+
+        // All the Set{Int,UInt,Short,UShort} overloads write the value's bits LSB-first, at most
+        // the value's own width. Shared here so none of them allocates a BitConverter buffer per
+        // call (the save path serializes thousands of small fields).
+        private void SetBitsLsbFirst(int bitOffset, int bitLength, uint value)
+        {
+            var bits = Bits;
+            for (int b = 0; b < bitLength; b++)
             {
-                for (int j = 0; j < 8; j++)
-                {
-                    Bits[(byteIndex + i) * 8 + bitIndex + j] = ((buffer[i] >> j) & 1) == 1;
-                    bitsWritten += 1;
-                    if (bitsWritten >= bitLength) return;
-                }
+                bits[bitOffset + b] = ((value >> b) & 1) == 1;
             }
         }
 
@@ -111,27 +136,19 @@ namespace SkyEditor.SaveEditor
 
         public uint GetUInt(int byteIndex, int bitIndex, int bitLength)
         {
+            var bits = Bits;
+            var offset = byteIndex * 8 + bitIndex;
             uint output = 0;
             for (int b = 0; b < bitLength; b++)
             {
-                output |= (uint)((Bits[byteIndex * 8 + bitIndex + b] ? 1 : 0) << b);
+                output |= (uint)((bits[offset + b] ? 1 : 0) << b);
             }
             return output;
         }
 
         public void SetUInt(int byteIndex, int bitIndex, int bitLength, uint value)
         {
-            var bitsWritten = 0;
-            var buffer = BitConverter.GetBytes(value);
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                for (int j = 0; j < 8; j++)
-                {
-                    Bits[(byteIndex + i) * 8 + bitIndex + j] = ((buffer[i] >> j) & 1) == 1;
-                    bitsWritten += 1;
-                    if (bitsWritten >= bitLength) return;
-                }
-            }
+            SetBitsLsbFirst(byteIndex * 8 + bitIndex, Math.Min(bitLength, 32), value);
         }
 
         public uint GetNextUInt(int bitLength)
@@ -159,17 +176,7 @@ namespace SkyEditor.SaveEditor
 
         public void SetShort(int byteIndex, int bitIndex, int bitLength, short value)
         {
-            var bitsWritten = 0;
-            var buffer = BitConverter.GetBytes(value);
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                for (int j = 0; j < 8; j++)
-                {
-                    Bits[(byteIndex + i) * 8 + bitIndex + j] = ((buffer[i] >> j) & 1) == 1;
-                    bitsWritten += 1;
-                    if (bitsWritten >= bitLength) return;
-                }
-            }
+            SetBitsLsbFirst(byteIndex * 8 + bitIndex, Math.Min(bitLength, 16), (ushort)value);
         }
 
         public short GetNextShort(int bitLength)
@@ -195,16 +202,11 @@ namespace SkyEditor.SaveEditor
             return output;
         }
 
+        // Previously wrote all 16 bits regardless of bitLength; it had no callers anywhere in
+        // the solution, so it now respects bitLength like the other setters.
         public void SetUShort(int byteIndex, int bitIndex, int bitLength, ushort value)
         {
-            var buffer = BitConverter.GetBytes(value);
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                for (int j = 0; j < 8; j++)
-                {
-                    Bits[(byteIndex + i) * 8 + bitIndex + j] = ((buffer[i] >> j) & 1) == 1;
-                }
-            }
+            SetBitsLsbFirst(byteIndex * 8 + bitIndex, Math.Min(bitLength, 16), value);
         }
 
         public uint GetNextUShort(int bitLength)
@@ -229,9 +231,24 @@ namespace SkyEditor.SaveEditor
 
         public void SetRange(int bitIndex, int bitLength, BitBlock value)
         {
+            var destination = Bits;
+            var source = value.Bits;
             for (int i = 0; i < bitLength; i++)
             {
-                Bits[bitIndex + i] = value[i];
+                destination[bitIndex + i] = source[i];
+            }
+        }
+
+        /// <summary>
+        /// Copies a bit range to another position within this same block, without the
+        /// intermediate allocations of GetRange+SetRange. Ranges are assumed not to overlap.
+        /// </summary>
+        public void CopyRangeWithin(int sourceBitIndex, int destinationBitIndex, int bitLength)
+        {
+            var bits = Bits;
+            for (int i = 0; i < bitLength; i++)
+            {
+                bits[destinationBitIndex + i] = bits[sourceBitIndex + i];
             }
         }
 
@@ -261,17 +278,21 @@ namespace SkyEditor.SaveEditor
 
         public List<byte> ToByteList()
         {
-            var output = new List<byte>();
-            for (int i = 0; i < Bits.Count; i += 8)
+            var bits = Bits;
+            var byteCount = bits.Count / 8;
+            var output = new List<byte>(byteCount);
+            for (int i = 0; i < byteCount; i++)
             {
-                if (Bits.Count - i >= 8)
+                var offset = i * 8;
+                var value = 0;
+                for (int b = 0; b < 8; b++)
                 {
-                    output.Add((byte)GetInt(0, i, 8));
+                    if (bits[offset + b])
+                    {
+                        value |= 1 << b;
+                    }
                 }
-                else
-                {
-                    break;
-                }
+                output.Add((byte)value);
             }
             return output;
         }

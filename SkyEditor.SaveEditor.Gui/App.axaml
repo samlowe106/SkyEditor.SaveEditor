@@ -1,0 +1,24 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SkyEditor.SaveEditor.Gui.App"
+             RequestedThemeVariant="Default">
+    <Application.Styles>
+        <FluentTheme />
+        <!-- Every ListBox row template in this app fills its row with a stretched Border for the
+             pending-highlight background; without this, ListBoxItem only gives that content as
+             much width as it needs, leaving the row's clickable area narrower than the highlight
+             band you see on hover. -->
+        <Style Selector="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <!-- Used by the per-row delete ("-") button: a destructive action, so it reads red rather
+             than matching the neutral default button styling. -->
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#C0392B" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.danger:pointerover">
+            <Setter Property="Background" Value="#E74C3C" />
+        </Style>
+    </Application.Styles>
+</Application>

@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netcoreapp2.2;net462</TargetFrameworks>
+    <TargetFrameworks>net8.0;net462</TargetFrameworks>
+    <Nullable>enable</Nullable>
     <Authors>Evan Dixon</Authors>
     <Company>Evan Dixon</Company>
     <Description>Save editing library for Pokemon Mystery Dungeon games.</Description>
