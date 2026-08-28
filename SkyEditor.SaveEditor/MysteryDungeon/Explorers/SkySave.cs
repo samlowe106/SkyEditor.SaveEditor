@@ -74,7 +74,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
 
             public virtual int CroagunkShopOffset => 0xB475 * 8;
             public virtual int CroagunkShopLength => 11;
-            public virtual int CroagunkShopNumber => 8;            
+            public virtual int CroagunkShopNumber => 8;
         }
 
         public SkySave() : base()
@@ -428,7 +428,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
                 {
                     break;
                 }
-                
+
                 StoredPokemon.Add(pkm);
             }
         }

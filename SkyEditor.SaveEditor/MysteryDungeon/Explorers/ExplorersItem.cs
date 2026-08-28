@@ -12,7 +12,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
         }
 
         public ExplorersItem(int id, int parameter)
-        {            
+        {
             ID = id;
             Parameter = parameter;
         }
@@ -26,7 +26,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
         /// Name of the item
         /// </summary>
         public string Name => (ID >= 0 && Lists.SkyItems.Count > ID) ?
-            Lists.SkyItems[ID] 
+            Lists.SkyItems[ID]
             : string.Format(Language.UnknownItem, ID.ToString());
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
                         Parameter = 0;
                     }
 
-                    if (Parameter > 127 )
+                    if (Parameter > 127)
                     {
                         Parameter = 127;
                     }

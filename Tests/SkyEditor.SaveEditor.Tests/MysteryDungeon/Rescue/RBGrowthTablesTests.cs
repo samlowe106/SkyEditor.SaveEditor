@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SkyEditor.SaveEditor.MysteryDungeon.Rescue;
 

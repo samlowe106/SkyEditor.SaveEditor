@@ -106,6 +106,44 @@
   plausibly friend-rescue state) and corrected the header doc: the
   per-section header fields are end-of-stream bit phases (total bits mod
   8), not byte lengths.
+- **Level/Exp/stat coupling + rank coupling** (2026-08-27): the full
+  per-species growth tables (cumulative Exp and exact per-level
+  HP/Atk/SpAtk/Def/SpDef gains, plus level-1 base stats from
+  monster_data.json) are now bundled in the library as
+  `Resources/RBGrowthTables.bin` (`tools/build_growth_tables.py`,
+  `RBGrowthTables.cs`), superseding the GUI-only ExpCurves.bin.
+  `RBGrowthTables.SetLevel` mirrors LevelUp/level-down in
+  src/dungeon_leveling.c exactly (add/subtract each level's row, caps
+  999/255, floors 1, Exp snaps to the level's requirement); growth is a
+  fixed table with no RNG, so this yields exactly legitimate stats.
+  Verified: base + summed gains reproduce all 204 recruit-guide entries
+  (`RBGrowthTablesTests`, 153 tests total). GUI: editing Level updates
+  stats and Exp; editing Exp derives the level (game's threshold rule)
+  and updates stats while keeping the typed Exp. Rescue Team rank got
+  the same treatment: a rank ComboBox on the General tab sets points to
+  the rank's minimum (`RBRescueTeamRanks.MinPointsFor`), and rank always
+  follows points.
+- **Git hooks** (2026-08-27): versioned in `.githooks/` (see its README;
+  enable per clone with `git config core.hooksPath .githooks`).
+  pre-commit runs `dotnet format whitespace --verify-no-changes` on the
+  staged .cs files only (so untouched legacy files never block), builds
+  the three net8.0 projects, and py_compile/ruff checks staged .py
+  files; pre-push runs the full test suite. `.editorconfig` holds the
+  whitespace rules plus suggestion-level C# style preferences (no
+  charset or line-ending pin: the inherited files carry BOMs and mixed
+  endings, and normalizing them is pure churn). A one-time whitespace
+  normalization of the 15 legacy files that failed the check went in
+  with this.
+- **Evolution history decoded** (2026-08-27): `RBStoredPokemon.Unk1` is
+  now fully understood: floor(7) + first-evolution level(7) +
+  second-evolution level(7) (decomp `unkC[0..1]`, written by the
+  evolution routine, read only by Gulpin's move-remembering list, which
+  is pure learnset-table math -- see SAVE_FORMAT.md "Evolution
+  history"). Exposed as `FirstEvolutionLevel`/`SecondEvolutionLevel`,
+  clamped 0-100, editable in the roster pane ("Evolved at"), verified
+  0/0 on every organic roster member and round-tripped bit-exactly
+  (`RBEvolutionHistoryTests`). Wild-recruited evolved forms legitimately
+  carry 0/0, so tool-added evolved recruits need no history.
 - ~~Test against real save files.~~ Resolved: `RRT.sav`, a real 128KB mGBA
   `.srm` from Sam's own legally-dumped cartridge (ROM SHA-1 verified
   against the decomp's `red.sha1`), is now an embedded test fixture

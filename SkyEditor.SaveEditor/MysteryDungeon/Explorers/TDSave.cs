@@ -289,7 +289,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
                 {
                     Bits.SetRange(index, Offsets.HeldItemLength, new BitBlock(Offsets.HeldItemLength));
                 }
-            }           
+            }
         }
         #endregion
 
@@ -338,7 +338,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
             for (int i = 0; i < Offsets.ActivePokemonCount; i++)
             {
                 var main = new TDActivePokemon(Bits.GetRange(baseOffset * 8 + Offsets.ActivePokemonOffset + i * Offsets.ActivePokemonLength, Offsets.ActivePokemonLength));
-                
+
                 if (main.IsValid)
                 {
                     ActivePokemon.Add(main);

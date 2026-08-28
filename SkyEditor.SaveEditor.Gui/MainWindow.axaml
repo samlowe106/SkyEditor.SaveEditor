@@ -430,6 +430,12 @@
                                         <TextBlock Text="Level:" VerticalAlignment="Center" Width="90" />
                                         <NumericUpDown Value="{Binding Level, Mode=TwoWay}" Minimum="1" Maximum="100" Width="150" />
                                     </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                                ToolTip.Tip="Levels at which this Pokemon evolved (first, second); 0 = never evolved while recruited, which is what a wild-recruited evolved form legitimately has. Only affects which pre-evolution moves Gulpin's shop can teach back.">
+                                        <TextBlock Text="Evolved at:" VerticalAlignment="Center" Width="90" />
+                                        <NumericUpDown Value="{Binding FirstEvolutionLevel, Mode=TwoWay}" Minimum="0" Maximum="100" Width="71" />
+                                        <NumericUpDown Value="{Binding SecondEvolutionLevel, Mode=TwoWay}" Minimum="0" Maximum="100" Width="71" />
+                                    </StackPanel>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <TextBlock Text="IQ:" VerticalAlignment="Center" Width="90" />
                                         <NumericUpDown Value="{Binding IQ, Mode=TwoWay}" Minimum="0" Maximum="600" Width="150" />

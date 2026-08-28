@@ -1,0 +1,31 @@
+# Shared editor/formatter settings; dotnet format (run by .githooks/pre-commit) enforces the
+# whitespace rules on staged .cs files. Line endings are deliberately not pinned: the
+# inherited files are a mix, and normalizing them would be a noisy history rewrite.
+root = true
+
+[*]
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# C# style preferences at suggestion level: visible in the IDE, not enforced by the hook.
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = true:suggestion
+dotnet_sort_system_directives_first = true
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+[*.axaml]
+indent_style = space
+indent_size = 4
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

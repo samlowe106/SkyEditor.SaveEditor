@@ -176,6 +176,20 @@ public sealed partial class RosterEntryViewModel : ObservableObject
         RefreshExpInfo();
     }
 
+    /// <summary>Level at first evolution, 0 = never evolved while recruited (a wild-recruited
+    /// evolved form legitimately has 0). Only affects which pre-evolution moves Gulpin offers.</summary>
+    public int FirstEvolutionLevel
+    {
+        get => _pkm.FirstEvolutionLevel;
+        set { if (_pkm.FirstEvolutionLevel == value) return; _pkm.FirstEvolutionLevel = value; OnPropertyChanged(); Edited(); }
+    }
+
+    public int SecondEvolutionLevel
+    {
+        get => _pkm.SecondEvolutionLevel;
+        set { if (_pkm.SecondEvolutionLevel == value) return; _pkm.SecondEvolutionLevel = value; OnPropertyChanged(); Edited(); }
+    }
+
     public int IQ
     {
         get => _pkm.IQ;

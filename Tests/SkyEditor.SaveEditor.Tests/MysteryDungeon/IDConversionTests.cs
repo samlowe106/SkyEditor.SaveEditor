@@ -49,7 +49,7 @@ namespace SkyEditor.SaveEditor.Tests.MysteryDungeon
             }
             Assert.Fail("Testing Pink Celebi did not throw argument exception.");
 
-            TestEoSToRB_TestKeckleon:
+        TestEoSToRB_TestKeckleon:
             try
             {
                 IDConversion.ConvertEoSPokemonToRB(384, true);
@@ -60,7 +60,7 @@ namespace SkyEditor.SaveEditor.Tests.MysteryDungeon
             }
             Assert.Fail("Testing Purple Keckleon did not throw argument exception.");
 
-            TestEoSToRB_TestAboveRange:
+        TestEoSToRB_TestAboveRange:
             try
             {
                 IDConversion.ConvertEoSPokemonToRB(422, true);
@@ -71,7 +71,7 @@ namespace SkyEditor.SaveEditor.Tests.MysteryDungeon
             }
             Assert.Fail("Testing Turtwig did not throw argument exception.");
 
-            TestEoSToRB_TestBelowRange:
+        TestEoSToRB_TestBelowRange:
             try
             {
                 IDConversion.ConvertEoSPokemonToRB(-1, true);

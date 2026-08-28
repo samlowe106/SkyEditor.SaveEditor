@@ -161,7 +161,10 @@ names/boundaries (e.g. the decomp's 14-bit `dungeonLocation` isn't the same shap
 agree on total width and the byte-for-byte content is preserved through `Unk1`/`Unk2`), but the
 field *names* in `RBStoredPokemon.cs` shouldn't be trusted as decomp-accurate without further
 work. Two pieces have since been decomposed properly out of the unknown regions: `Floor` (the
-second half of `dungeonLocation`, first 7 bits of `Unk1`) and the held item (`Unk2` bits 28-42:
+second half of `dungeonLocation`, first 7 bits of `Unk1`), the two evolution-history levels
+(`unkC[0..1].level`, 7 bits each, `Unk1` bits 7-13 and 14-20 = slot bits 30-43, exposed as
+`FirstEvolutionLevel`/`SecondEvolutionLevel`; `Unk1` is now fully decoded -- see "Evolution
+history" below), and the held item (`Unk2` bits 28-42:
 `WriteHeldItemBits`' id(8) + quantity(7), exposed as `HeldItemId`/`HeldItemQuantity` and verified
 against a real save's five held-gear Pokemon). `Unk2` bits 0-27 are IQSkills(24) + tacticIndex(4),
 still preserved raw. Note the held item, the Toolbox (`teamItems[20]`, `RBSave.HeldItems`), and
@@ -216,6 +219,30 @@ dangling index (this is what the GUI's Farewell warning is about). Making "who i
 and "who is the leader" editable means modeling these fields; the layout above is everything
 needed to do it, and the `team[4]` copies would want to be kept consistent with their roster
 counterparts when stats are edited.
+
+### Evolution history (`unkC[0..1]`, slot bits 30-43) — VERIFIED
+
+Each slot carries two 7-bit levels (`ReadPoke1LevelBits`, `src/pokemon_3.c:765`) right after
+`dungeonLocation`. The evolution routine (`sub_808F798`, `src/pokemon_evolution.c:227`)
+writes the Pokemon's current level into the first zero entry each time it evolves, so they
+record the level at the first and second evolution; a Pokemon recruited already evolved
+legitimately has 0/0 (nothing else in the game fills them). Every never-evolved member of
+the real save reads 0/0.
+
+Their only consumer is `GetEvolutionSequence` (`src/pokemon.c:1201`), which feeds Gulpin's
+move-remembering shop (`sub_808E218`, `src/pokemon.c:1139`): the list of moves a Pokemon can
+"remember" is recomputed purely from learnset tables -- current species' level-up moves up
+to its level, plus each recorded pre-evolution's moves up to the stored evolution level,
+minus IQ-gated ultimates, minus moves currently known. Nothing tracks what was actually
+learned or forgotten. Quirk, as written in the decomp: the sequence pairs the immediate
+pre-evolution with `unkC[0]` and the pre-pre-evolution with `unkC[1]`, which is the reverse
+of the order the levels were recorded in for a two-stage chain (Bagon → Shelgon at L1,
+Shelgon → Salamence at L2 gives Shelgon-moves-up-to-L1 and Bagon-moves-up-to-L2).
+
+Editing consequence: a tool-added evolved form with 0/0 is exactly what a wild-recruited
+one looks like, so it isn't a fingerprint; setting the levels only widens what Gulpin
+offers. Both fields are editable (`RBStoredPokemon`, roster pane "Evolved at"), clamped to
+0-100 in `ClampToGameLimits`.
 
 ### TeamInventory (`0x4CF0`) — VERIFIED
 

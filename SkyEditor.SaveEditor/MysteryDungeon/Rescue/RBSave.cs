@@ -184,7 +184,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
         public virtual uint CalculateSecondaryChecksum()
         {
             return Checksums.Calculate32BitChecksum(Bits, Offsets.BackupSaveStart + 4, Offsets.BackupSaveStart + Offsets.ChecksumEnd);
-        }        
+        }
 
         /// <summary>
         /// Determines whether or not the checksum of the primary save matches the primary save
@@ -353,9 +353,9 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
             }
             // - Update the save
             var block = new BitBlock(Offsets.StoredItemCount * 10);
-            for (int i = 0;i<Offsets.StoredItemCount;i++)
+            for (int i = 0; i < Offsets.StoredItemCount; i++)
             {
-                if (compiledItems.ContainsKey(i+1))
+                if (compiledItems.ContainsKey(i + 1))
                 {
                     block.SetNextInt(10, compiledItems[i + 1]);
                 }
@@ -953,6 +953,8 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
             foreach (var pkm in StoredPokemon)
             {
                 pkm.Level = Math.Clamp(pkm.Level, 1, 100);
+                pkm.FirstEvolutionLevel = Math.Clamp(pkm.FirstEvolutionLevel, 0, 100);
+                pkm.SecondEvolutionLevel = Math.Clamp(pkm.SecondEvolutionLevel, 0, 100);
                 pkm.IQ = Math.Clamp(pkm.IQ, 0, 999);
                 pkm.HP = Math.Clamp(pkm.HP, 1, 999);
 

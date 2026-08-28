@@ -38,7 +38,7 @@ namespace SkyEditor.SaveEditor
         /// </remarks>
         public async Task<bool> IsOfType(GenericFile file)
         {
-            if (file.Length > 2 && await file.ReadAsync(0) == 0x78 && new byte[] { 0x1, 0x9C, 0xDA}.Contains(await file.ReadAsync(1)) && file.Length < 32 * 1024 * 1024)
+            if (file.Length > 2 && await file.ReadAsync(0) == 0x78 && new byte[] { 0x1, 0x9C, 0xDA }.Contains(await file.ReadAsync(1)) && file.Length < 32 * 1024 * 1024)
             {
                 try
                 {
@@ -67,7 +67,7 @@ namespace SkyEditor.SaveEditor
                 return false;
             }
         }
-        
+
         public byte[] RawData { get; set; }
     }
 }

@@ -105,6 +105,6 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
             output.SetInt(0, 15, 8, ID);
 
             return output;
-        }      
+        }
     }
 }

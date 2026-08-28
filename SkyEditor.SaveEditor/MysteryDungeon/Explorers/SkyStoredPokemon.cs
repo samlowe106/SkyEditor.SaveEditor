@@ -111,7 +111,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
             bits.SetRange(261, ExplorersAttack.BitLength, Attack4.ToBitBlock());
             bits.SetStringPMD(0, 282, 10, Name);
             return bits;
-        }    
+        }
 
         public string Filename { get; set; }
         public bool IsValid { get; set; }

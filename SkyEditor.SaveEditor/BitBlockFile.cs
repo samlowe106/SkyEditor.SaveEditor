@@ -46,7 +46,7 @@ namespace SkyEditor.SaveEditor
             }
         }
         private string _name;
-        
+
         private IFileSystem CurrentFileSystem { get; set; }
 
         public virtual async Task OpenFile(string filename, IFileSystem provider)
@@ -66,7 +66,7 @@ namespace SkyEditor.SaveEditor
 
         private void ProcessRawData(GenericFile file)
         {
-            for (int i = 0;i<file.Length;i++)
+            for (int i = 0; i < file.Length; i++)
             {
                 Bits.AppendByte(file.Read(i));
             }
@@ -83,7 +83,7 @@ namespace SkyEditor.SaveEditor
             using (var f = new GenericFile())
             {
                 f.CreateFile(buffer);
-                for (int i = 0;i<buffer.Length;i++)
+                for (int i = 0; i < buffer.Length; i++)
                 {
                     await f.WriteAsync(i, (byte)Bits.GetInt(i, 0, 8));
                 }
@@ -101,7 +101,7 @@ namespace SkyEditor.SaveEditor
         {
             PreSave();
             return Bits.ToByteArray();
-        } 
+        }
 
         public virtual string GetDefaultExtension()
         {

@@ -18,7 +18,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Explorers
         }
 
         public SkyHeldItem(BitBlock bits)
-        { 
+        {
             bits.Position = 0;
             IsValid = bits[0];
             Flag1 = bits[1];

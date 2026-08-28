@@ -17,7 +17,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
 
         public RBStoredPokemon()
         {
-            Unk1 = new BitBlock(23);
+            Unk1 = new BitBlock(21);
             Unk2 = new BitBlock(43);
         }
 
@@ -123,6 +123,38 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
             get => Unk1.GetInt(0, 0, 7);
             set => Unk1.SetInt(0, 0, 7, value);
         }
+
+        /// <summary>
+        /// Evolution history: the level this Pokemon was at when it evolved for the first time,
+        /// or 0 if it never evolved while recruited. Bits 30-36 of the slot (the decomp's
+        /// <c>unkC[0].level</c>, <c>ReadPoke1LevelBits</c>, src/pokemon_3.c:765), i.e.
+        /// <see cref="Unk1"/> bits 7-13, right after <see cref="Floor"/>. Set by the evolution
+        /// routine (<c>sub_808F798</c>, src/pokemon_evolution.c:227: the first zero entry
+        /// receives the current level), so a Pokemon recruited already evolved legitimately has
+        /// 0 here. Read by <c>GetEvolutionSequence</c> (src/pokemon.c:1201) to decide which
+        /// pre-evolution learnsets Gulpin's move-remembering shop offers -- see
+        /// <see cref="SecondEvolutionLevel"/> for the pairing quirk. Verified on the reference
+        /// save: every never-evolved roster member reads 0/0.
+        /// </summary>
+        public int FirstEvolutionLevel
+        {
+            get => Unk1.GetInt(0, 7, 7);
+            set => Unk1.SetInt(0, 7, 7, value);
+        }
+
+        /// <summary>
+        /// Evolution history: the level at the second evolution, or 0 (bits 37-43 of the slot,
+        /// <c>unkC[1].level</c>, <see cref="Unk1"/> bits 14-20). Note how the game consumes the
+        /// pair: <c>GetEvolutionSequence</c> pairs the immediate pre-evolution with
+        /// <see cref="FirstEvolutionLevel"/> and the pre-pre-evolution with this value, so for a
+        /// two-stage chain Gulpin offers the middle form's moves only up to the first evolution
+        /// level and the base form's moves up to the second -- as written in the decomp.
+        /// </summary>
+        public int SecondEvolutionLevel
+        {
+            get => Unk1.GetInt(0, 14, 7);
+            set => Unk1.SetInt(0, 14, 7, value);
+        }
         public int IQ { get; set; }
         public int HP { get; set; }
         public int Attack { get; set; }
@@ -200,7 +232,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon.Rescue
         /// everything down to slots 0..N-1 -- avoids silently invalidating those references.
         /// </summary>
         public int SlotIndex { get; set; } = -1;
-        
+
 
         public string GetDefaultExtension()
         {

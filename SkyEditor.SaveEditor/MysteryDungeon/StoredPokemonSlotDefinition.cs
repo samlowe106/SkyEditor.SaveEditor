@@ -19,7 +19,7 @@ namespace SkyEditor.SaveEditor.MysteryDungeon
         public string Name { get; set; }
         public int Length { get; set; }
         public int CurrentPokemonCount { get; set; }
-        
+
         public static StoredPokemonSlotDefinition FromLine(string Line, int Index)
         {
             var parts = Line.Split(':');
